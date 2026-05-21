@@ -458,7 +458,7 @@ class DiagramCanvas(QWidget):
                                cursor_pos.x(), cursor_pos.y())
 
     def draw_block(self, painter: QPainter, block: Block):
-        if self.creating_connector:
+        if self.creating_connector and self.selected_id != block.id:
             color = QColor(180, 180, 180)
             border_color = QColor(100, 100, 100)
         else:
@@ -502,7 +502,7 @@ class DiagramCanvas(QWidget):
             painter.drawRect(int(hx), int(hy), h, h)
 
     def draw_table(self, painter: QPainter, table: Table):
-        if self.creating_connector:
+        if self.creating_connector and self.selected_id != table.id:
             color = QColor(180, 180, 180)
             border_color = QColor(100, 100, 100)
         else:
@@ -574,7 +574,6 @@ class DiagramCanvas(QWidget):
         p_right = Point(p2.x - arrow_size * math.cos(angle + math.pi / 6),
                         p2.y - arrow_size * math.sin(angle + math.pi / 6))
 
-        painter.setBrush(QBrush(color))
         arrow = QPolygonF([QPointF(p2.x, p2.y), QPointF(p_left.x, p_left.y), QPointF(p_right.x, p_right.y)])
         painter.drawPolygon(arrow)
 
