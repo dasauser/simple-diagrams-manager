@@ -217,8 +217,6 @@ class EditTableDialog(QDialog):
 
 
 class DiagramCanvas(QWidget):
-    connector_created = pyqtSignal()
-
     def __init__(self):
         super().__init__()
         self.blocks: List[Block] = []
@@ -230,6 +228,7 @@ class DiagramCanvas(QWidget):
         self.drag_offset = Point(0, 0)
         self.creating_connector = False
         self.connector_start: Optional[str] = None
+        self.connector_button_rect = None
 
         self.element_counter = 0
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -252,11 +251,6 @@ class DiagramCanvas(QWidget):
         table.add_field("field1")
         self.tables.append(table)
         self.update()
-
-    def add_connector(self):
-        if self.selected_element and isinstance(self.selected_element, Block):
-            self.creating_connector = True
-            self.connector_start = self.selected_element.id
 
     def delete_selected(self):
         if isinstance(self.selected_element, Block):
@@ -303,6 +297,15 @@ class DiagramCanvas(QWidget):
 
         pos = Point(event.position().x(), event.position().y())
 
+        # Check if clicking on connector button
+        if (self.connector_button_rect and 
+            self.connector_button_rect.contains(int(pos.x), int(pos.y)) and
+            isinstance(self.selected_element, Block)):
+            self.creating_connector = True
+            self.connector_start = self.selected_element.id
+            self.update()
+            return
+
         if self.creating_connector:
             # Try to connect to a block
             for block in self.get_all_blocks():
@@ -312,8 +315,6 @@ class DiagramCanvas(QWidget):
                     self.connectors.append(Connector(connector_id, self.connector_start, block.id))
                     self.creating_connector = False
                     self.connector_start = None
-                    # Signal to deactivate button - will be handled by parent
-                    self.connector_created.emit()
                     self.update()
                     return
 
@@ -438,6 +439,10 @@ class DiagramCanvas(QWidget):
             Qt.AlignmentFlag.AlignCenter, block.title
         )
 
+        # Draw connector button if selected
+        if block.selected:
+            self.draw_connector_button(painter, block)
+
     def draw_table(self, painter: QPainter, table: Table):
         color = QColor(150, 200, 100) if table.selected else QColor(200, 240, 150)
         painter.fillRect(int(table.x), int(table.y), int(table.width), int(table.height), color)
@@ -469,6 +474,34 @@ class DiagramCanvas(QWidget):
                 int(table.x + 5), int(y), int(table.width - 10), 25,
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, field
             )
+
+        # Draw connector button if selected
+        if table.selected:
+            self.draw_connector_button(painter, table)
+
+    def draw_connector_button(self, painter: QPainter, block: Block):
+        """Draw a small + button in the middle of the top edge"""
+        button_size = 20
+        button_x = block.x + block.width / 2 - button_size / 2
+        button_y = block.y - button_size - 5
+
+        # Draw button background
+        painter.fillRect(int(button_x), int(button_y), button_size, button_size, QColor(76, 175, 80))
+
+        # Draw button border
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+        painter.drawRect(int(button_x), int(button_y), button_size, button_size)
+
+        # Draw + sign
+        painter.setPen(QPen(QColor(255, 255, 255), 2))
+        painter.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        painter.drawText(
+            int(button_x), int(button_y), button_size, button_size,
+            Qt.AlignmentFlag.AlignCenter, "+"
+        )
+
+        # Store button rect for hit detection
+        self.connector_button_rect = QRect(int(button_x), int(button_y), button_size, button_size)
 
     def draw_connector(self, painter: QPainter, connector: Connector):
         from_block = next((b for b in self.get_all_blocks() if b.id == connector.from_id), None)
@@ -567,9 +600,6 @@ class DiagramApp(QMainWindow):
 
         self.canvas = DiagramCanvas()
         self.active_button = None
-        
-        # Connect canvas signal
-        self.canvas.connector_created.connect(self.deactivate_connector_button)
 
         # Main layout
         main_widget = QWidget()
@@ -586,23 +616,16 @@ class DiagramApp(QMainWindow):
         
         table_btn = QPushButton("Add Table")
         table_btn.clicked.connect(lambda: self.on_tool_button(table_btn, self.canvas.add_table))
-        
-        connector_btn = QPushButton("Add Connector")
-        connector_btn.clicked.connect(lambda: self.on_tool_button(connector_btn, self.canvas.add_connector))
-        
+
         delete_btn = QPushButton("Delete")
         delete_btn.clicked.connect(self.canvas.delete_selected)
         
         edit_btn = QPushButton("Edit")
         edit_btn.clicked.connect(self.canvas.edit_selected)
 
-        # Store connector button for later deactivation
-        self.connector_btn = connector_btn
-
         toolbar_layout.addWidget(create_btn)
         toolbar_layout.addWidget(block_btn)
         toolbar_layout.addWidget(table_btn)
-        toolbar_layout.addWidget(connector_btn)
         toolbar_layout.addWidget(edit_btn)
         toolbar_layout.addWidget(delete_btn)
         toolbar_layout.addStretch()
@@ -636,18 +659,7 @@ class DiagramApp(QMainWindow):
         # Execute the action
         action()
 
-    def deactivate_connector_button(self):
-        """Deactivate connector button after connection is made"""
-        if self.active_button == self.connector_btn:
-            self.connector_btn.setStyleSheet("")
-            self.active_button = None
-
     def new_diagram(self):
-        # Deactivate connector button if active
-        if self.active_button == self.connector_btn:
-            self.connector_btn.setStyleSheet("")
-            self.active_button = None
-        
         self.canvas.blocks.clear()
         self.canvas.tables.clear()
         self.canvas.connectors.clear()
