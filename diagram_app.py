@@ -33,6 +33,8 @@ class Block:
     height: float
     title: str
     selected: bool = False
+    
+    HANDLE_SIZE = 8
 
     def contains(self, point: Point) -> bool:
         return (self.x <= point.x <= self.x + self.width and
@@ -59,6 +61,25 @@ class Block:
         y = max(self.y, min(y, self.y + self.height))
 
         return Point(x, y)
+    
+    def get_resize_handle_at(self, point: Point) -> Optional[str]:
+        """Check if point is on a resize handle. Returns handle position or None."""
+        h = self.HANDLE_SIZE
+        handles = {
+            'top_left': (self.x - h/2, self.y - h/2),
+            'top': (self.x + self.width/2 - h/2, self.y - h/2),
+            'top_right': (self.x + self.width - h/2, self.y - h/2),
+            'left': (self.x - h/2, self.y + self.height/2 - h/2),
+            'right': (self.x + self.width - h/2, self.y + self.height/2 - h/2),
+            'bottom_left': (self.x - h/2, self.y + self.height - h/2),
+            'bottom': (self.x + self.width/2 - h/2, self.y + self.height - h/2),
+            'bottom_right': (self.x + self.width - h/2, self.y + self.height - h/2),
+        }
+        
+        for handle_name, (hx, hy) in handles.items():
+            if (hx <= point.x <= hx + h and hy <= point.y <= hy + h):
+                return handle_name
+        return None
 
 
 @dataclass
@@ -191,6 +212,7 @@ class DiagramCanvas(QWidget):
         self.selected_id: Optional[str] = None
         self.dragging = False
         self.drag_offset = Point(0, 0)
+        self.resizing_handle: Optional[str] = None
         self.creating_connector = False
         self.connector_start: Optional[str] = None
         self.connector_button_rect = None
@@ -278,6 +300,14 @@ class DiagramCanvas(QWidget):
         if self.creating_connector:
             for block in self.get_all_blocks():
                 if block.contains(pos) and block.id != self.connector_start:
+                    # Check if connection already exists
+                    existing = next((c for c in self.connectors 
+                                   if c.from_id == self.connector_start and c.to_id == block.id), None)
+                    
+                    if existing:
+                        # Remove old connection and create new one
+                        self.connectors.remove(existing)
+                    
                     connector_id = f"connector_{self.element_counter}"
                     self.element_counter += 1
                     self.connectors.append(Connector(connector_id, self.connector_start, block.id))
@@ -301,10 +331,20 @@ class DiagramCanvas(QWidget):
             self.update()
             return
 
+        # Check for resize handle
+        selected_block = self.get_block_by_id(self.selected_id) if self.selected_id else None
+        if selected_block:
+            handle = selected_block.get_resize_handle_at(pos)
+            if handle:
+                self.resizing_handle = handle
+                self.update()
+                return
+
         for block in self.get_all_blocks():
             block.selected = False
 
         self.selected_id = None
+        self.resizing_handle = None
 
         for block in self.get_all_blocks():
             if block.contains(pos):
@@ -326,6 +366,30 @@ class DiagramCanvas(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent):
         pos = Point(event.position().x(), event.position().y())
+        
+        if self.resizing_handle and self.selected_id:
+            block = self.get_block_by_id(self.selected_id)
+            if block:
+                min_size = 50
+                h = self.resizing_handle
+                
+                if 'left' in h:
+                    block.width = max(min_size, block.width + (block.x - pos.x))
+                    block.x = pos.x
+                if 'right' in h:
+                    block.width = max(min_size, pos.x - block.x)
+                if 'top' in h:
+                    block.height = max(min_size, block.height + (block.y - pos.y))
+                    block.y = pos.y
+                if 'bottom' in h:
+                    block.height = max(min_size, pos.y - block.y)
+                
+                if isinstance(block, Table):
+                    block.update_height()
+                
+                self.update()
+            return
+        
         if self.dragging and self.selected_id:
             block = self.get_block_by_id(self.selected_id)
             if block:
@@ -336,6 +400,7 @@ class DiagramCanvas(QWidget):
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             self.dragging = False
+            self.resizing_handle = None
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
         self.edit_selected()
@@ -411,8 +476,30 @@ class DiagramCanvas(QWidget):
         painter.drawText(int(block.x), int(block.y), int(block.width), int(block.height),
                         Qt.AlignmentFlag.AlignCenter, block.title)
 
+        # Draw resize handles if selected
         if block.selected and not self.creating_connector:
+            self.draw_resize_handles(painter, block)
             self.draw_connector_button(painter, block)
+
+    def draw_resize_handles(self, painter: QPainter, block: Block):
+        """Draw resize handles on block corners and edges"""
+        h = int(Block.HANDLE_SIZE)
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
+        
+        handles = [
+            (block.x - h/2, block.y - h/2),  # top_left
+            (block.x + block.width/2 - h/2, block.y - h/2),  # top
+            (block.x + block.width - h/2, block.y - h/2),  # top_right
+            (block.x - h/2, block.y + block.height/2 - h/2),  # left
+            (block.x + block.width - h/2, block.y + block.height/2 - h/2),  # right
+            (block.x - h/2, block.y + block.height - h/2),  # bottom_left
+            (block.x + block.width/2 - h/2, block.y + block.height - h/2),  # bottom
+            (block.x + block.width - h/2, block.y + block.height - h/2),  # bottom_right
+        ]
+        
+        for hx, hy in handles:
+            painter.drawRect(int(hx), int(hy), h, h)
 
     def draw_table(self, painter: QPainter, table: Table):
         if self.creating_connector:
@@ -445,6 +532,7 @@ class DiagramCanvas(QWidget):
                            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, field)
 
         if table.selected and not self.creating_connector:
+            self.draw_resize_handles(painter, table)
             self.draw_connector_button(painter, table)
 
     def draw_connector_button(self, painter: QPainter, block: Block):
