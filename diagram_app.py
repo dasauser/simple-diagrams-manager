@@ -217,6 +217,8 @@ class EditTableDialog(QDialog):
 
 
 class DiagramCanvas(QWidget):
+    connector_created = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self.blocks: List[Block] = []
@@ -310,6 +312,8 @@ class DiagramCanvas(QWidget):
                     self.connectors.append(Connector(connector_id, self.connector_start, block.id))
                     self.creating_connector = False
                     self.connector_start = None
+                    # Signal to deactivate button - will be handled by parent
+                    self.connector_created.emit()
                     self.update()
                     return
 
@@ -562,6 +566,10 @@ class DiagramApp(QMainWindow):
         self.setGeometry(100, 100, 1000, 700)
 
         self.canvas = DiagramCanvas()
+        self.active_button = None
+        
+        # Connect canvas signal
+        self.canvas.connector_created.connect(self.deactivate_connector_button)
 
         # Main layout
         main_widget = QWidget()
@@ -574,19 +582,22 @@ class DiagramApp(QMainWindow):
         create_btn.clicked.connect(self.new_diagram)
         
         block_btn = QPushButton("Add Block")
-        block_btn.clicked.connect(self.canvas.add_block)
+        block_btn.clicked.connect(lambda: self.on_tool_button(block_btn, self.canvas.add_block))
         
         table_btn = QPushButton("Add Table")
-        table_btn.clicked.connect(self.canvas.add_table)
+        table_btn.clicked.connect(lambda: self.on_tool_button(table_btn, self.canvas.add_table))
         
         connector_btn = QPushButton("Add Connector")
-        connector_btn.clicked.connect(self.canvas.add_connector)
+        connector_btn.clicked.connect(lambda: self.on_tool_button(connector_btn, self.canvas.add_connector))
         
         delete_btn = QPushButton("Delete")
         delete_btn.clicked.connect(self.canvas.delete_selected)
         
         edit_btn = QPushButton("Edit")
         edit_btn.clicked.connect(self.canvas.edit_selected)
+
+        # Store connector button for later deactivation
+        self.connector_btn = connector_btn
 
         toolbar_layout.addWidget(create_btn)
         toolbar_layout.addWidget(block_btn)
@@ -606,12 +617,44 @@ class DiagramApp(QMainWindow):
         main_widget.setLayout(layout)
         self.setCentralWidget(main_widget)
 
+    def on_tool_button(self, button: QPushButton, action):
+        """Handle tool button clicks with visual feedback"""
+        # Deactivate previous button
+        if self.active_button and self.active_button != button:
+            self.active_button.setStyleSheet("")
+        
+        # Toggle current button
+        if self.active_button == button:
+            # Deactivate if clicking the same button
+            button.setStyleSheet("")
+            self.active_button = None
+        else:
+            # Activate new button
+            button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+            self.active_button = button
+        
+        # Execute the action
+        action()
+
+    def deactivate_connector_button(self):
+        """Deactivate connector button after connection is made"""
+        if self.active_button == self.connector_btn:
+            self.connector_btn.setStyleSheet("")
+            self.active_button = None
+
     def new_diagram(self):
+        # Deactivate connector button if active
+        if self.active_button == self.connector_btn:
+            self.connector_btn.setStyleSheet("")
+            self.active_button = None
+        
         self.canvas.blocks.clear()
         self.canvas.tables.clear()
         self.canvas.connectors.clear()
         self.canvas.selected_element = None
         self.canvas.element_counter = 0
+        self.canvas.creating_connector = False
+        self.canvas.connector_start = None
         self.canvas.update()
 
     def save_diagram(self):
