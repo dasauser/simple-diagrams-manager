@@ -11,10 +11,10 @@ from PyQt6.QtWidgets import (
     QPushButton, QFileDialog, QMessageBox, QLabel, QLineEdit, QDialog,
     QDialogButtonBox, QSpinBox, QListWidget, QListWidgetItem
 )
-from PyQt6.QtCore import Qt, QPoint, QRect, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QRect, QTimer, pyqtSignal, QPointF
 from PyQt6.QtGui import (
     QPainter, QPen, QColor, QFont, QImage, QBrush,
-    QMouseEvent, QKeyEvent, QCursor
+    QMouseEvent, QKeyEvent, QCursor, QPolygonF
 )
 
 
@@ -496,11 +496,12 @@ class DiagramCanvas(QWidget):
         )
 
         painter.setBrush(QBrush(color))
-        painter.drawPolygon([
-            (int(p2.x), int(p2.y)),
-            (int(p_left.x), int(p_left.y)),
-            (int(p_right.x), int(p_right.y))
+        arrow = QPolygonF([
+            QPointF(p2.x, p2.y),
+            QPointF(p_left.x, p_left.y),
+            QPointF(p_right.x, p_right.y)
         ])
+        painter.drawPolygon(arrow)
 
     def save_as_image(self, filepath: str):
         """Save diagram as PNG image"""
