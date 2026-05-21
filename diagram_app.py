@@ -1,36 +1,24 @@
 import sys
-import json
 import math
-from pathlib import Path
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
-from enum import Enum
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QFileDialog, QMessageBox, QLabel, QLineEdit, QDialog,
-    QDialogButtonBox, QSpinBox, QListWidget, QListWidgetItem
+    QDialogButtonBox, QSpinBox, QListWidget
 )
-from PyQt6.QtCore import Qt, QPoint, QRect, QTimer, pyqtSignal, QPointF
+from PyQt6.QtCore import Qt, QPoint, QRect, QPointF
 from PyQt6.QtGui import (
     QPainter, QPen, QColor, QFont, QImage, QBrush,
     QMouseEvent, QKeyEvent, QCursor, QPolygonF
 )
 
 
-class ElementType(Enum):
-    BLOCK = "block"
-    TABLE = "table"
-    CONNECTOR = "connector"
-
-
 @dataclass
 class Point:
     x: float
     y: float
-
-    def distance_to(self, other: 'Point') -> float:
-        return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
 
     def to_tuple(self) -> Tuple[float, float]:
         return (self.x, self.y)
@@ -54,22 +42,19 @@ class Block:
         return Point(self.x + self.width / 2, self.y + self.height / 2)
 
     def get_connection_point(self, target: 'Block') -> Point:
-        """Get the point on this block's edge closest to target"""
         cx, cy = self.get_center().to_tuple()
         tx, ty = target.get_center().to_tuple()
 
-        # Determine which edge to use
         dx = tx - cx
         dy = ty - cy
 
-        if abs(dx) > abs(dy):  # Use left or right edge
+        if abs(dx) > abs(dy):
             x = self.x if dx < 0 else self.x + self.width
             y = cy
-        else:  # Use top or bottom edge
+        else:
             x = cx
             y = self.y if dy < 0 else self.y + self.height
 
-        # Clamp to block bounds
         x = max(self.x, min(x, self.x + self.width))
         y = max(self.y, min(y, self.y + self.height))
 
@@ -84,17 +69,11 @@ class Table(Block):
         self.update_height()
 
     def update_height(self):
-        """Recalculate height based on number of fields"""
         self.height = max(60, 40 + len(self.fields) * 25)
 
     def add_field(self, name: str):
         self.fields.append(name)
         self.update_height()
-
-    def remove_field(self, index: int):
-        if 0 <= index < len(self.fields):
-            self.fields.pop(index)
-            self.update_height()
 
 
 @dataclass
@@ -114,30 +93,26 @@ class EditBlockDialog(QDialog):
 
     def setup_ui(self):
         layout = QVBoxLayout()
-
         layout.addWidget(QLabel("Title:"))
         self.title_input = QLineEdit(self.block.title)
         layout.addWidget(self.title_input)
-
+        
         layout.addWidget(QLabel("Width:"))
         self.width_spin = QSpinBox()
         self.width_spin.setRange(50, 500)
         self.width_spin.setValue(int(self.block.width))
         layout.addWidget(self.width_spin)
-
+        
         layout.addWidget(QLabel("Height:"))
         self.height_spin = QSpinBox()
         self.height_spin.setRange(50, 500)
         self.height_spin.setValue(int(self.block.height))
         layout.addWidget(self.height_spin)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-
         self.setLayout(layout)
 
     def get_values(self):
@@ -157,23 +132,22 @@ class EditTableDialog(QDialog):
 
     def setup_ui(self):
         layout = QVBoxLayout()
-
         layout.addWidget(QLabel("Table Name:"))
         self.title_input = QLineEdit(self.table.title)
         layout.addWidget(self.title_input)
-
+        
         layout.addWidget(QLabel("Width:"))
         self.width_spin = QSpinBox()
         self.width_spin.setRange(100, 500)
         self.width_spin.setValue(int(self.table.width))
         layout.addWidget(self.width_spin)
-
+        
         layout.addWidget(QLabel("Fields:"))
         self.fields_list = QListWidget()
         for field in self.table.fields:
             self.fields_list.addItem(field)
         layout.addWidget(self.fields_list)
-
+        
         fields_layout = QHBoxLayout()
         self.field_input = QLineEdit()
         self.field_input.setPlaceholderText("Field name")
@@ -181,19 +155,15 @@ class EditTableDialog(QDialog):
         add_btn.clicked.connect(self.add_field)
         remove_btn = QPushButton("Remove Field")
         remove_btn.clicked.connect(self.remove_field)
-
         fields_layout.addWidget(self.field_input)
         fields_layout.addWidget(add_btn)
         fields_layout.addWidget(remove_btn)
         layout.addLayout(fields_layout)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-
         self.setLayout(layout)
 
     def add_field(self):
@@ -203,17 +173,12 @@ class EditTableDialog(QDialog):
             self.field_input.clear()
 
     def remove_field(self):
-        row = self.fields_list.currentRow()
-        if row >= 0:
-            self.fields_list.takeItem(row)
+        if self.fields_list.currentRow() >= 0:
+            self.fields_list.takeItem(self.fields_list.currentRow())
 
     def get_values(self):
         fields = [self.fields_list.item(i).text() for i in range(self.fields_list.count())]
-        return {
-            'title': self.title_input.text(),
-            'width': self.width_spin.value(),
-            'fields': fields
-        }
+        return {'title': self.title_input.text(), 'width': self.width_spin.value(), 'fields': fields}
 
 
 class DiagramCanvas(QWidget):
@@ -222,20 +187,26 @@ class DiagramCanvas(QWidget):
         self.blocks: List[Block] = []
         self.tables: List[Table] = []
         self.connectors: List[Connector] = []
-
-        self.selected_element: Optional[Block | Connector] = None
+        
+        self.selected_id: Optional[str] = None
         self.dragging = False
         self.drag_offset = Point(0, 0)
         self.creating_connector = False
         self.connector_start: Optional[str] = None
         self.connector_button_rect = None
-
         self.element_counter = 0
+        
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
 
     def get_all_blocks(self) -> List[Block]:
         return self.blocks + self.tables
+
+    def get_block_by_id(self, block_id: str) -> Optional[Block]:
+        for block in self.get_all_blocks():
+            if block.id == block_id:
+                return block
+        return None
 
     def add_block(self):
         block_id = f"block_{self.element_counter}"
@@ -253,41 +224,48 @@ class DiagramCanvas(QWidget):
         self.update()
 
     def delete_selected(self):
-        if isinstance(self.selected_element, Block):
-            if self.selected_element in self.blocks:
-                self.blocks.remove(self.selected_element)
-            elif self.selected_element in self.tables:
-                self.tables.remove(self.selected_element)
-            # Remove associated connectors
-            self.connectors = [
-                c for c in self.connectors
-                if c.from_id != self.selected_element.id and c.to_id != self.selected_element.id
-            ]
-        elif isinstance(self.selected_element, Connector):
-            self.connectors.remove(self.selected_element)
-
-        self.selected_element = None
+        if not self.selected_id:
+            return
+        
+        block = self.get_block_by_id(self.selected_id)
+        if block:
+            if block in self.blocks:
+                self.blocks.remove(block)
+            elif block in self.tables:
+                self.tables.remove(block)
+            self.connectors = [c for c in self.connectors 
+                             if c.from_id != self.selected_id and c.to_id != self.selected_id]
+        else:
+            connector = next((c for c in self.connectors if c.id == self.selected_id), None)
+            if connector:
+                self.connectors.remove(connector)
+        
+        self.selected_id = None
         self.update()
 
     def edit_selected(self):
-        if not isinstance(self.selected_element, Block):
+        if not self.selected_id:
+            return
+        
+        block = self.get_block_by_id(self.selected_id)
+        if not block:
             return
 
-        if isinstance(self.selected_element, Table):
-            dialog = EditTableDialog(self.selected_element, self)
+        if isinstance(block, Table):
+            dialog = EditTableDialog(block, self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 values = dialog.get_values()
-                self.selected_element.title = values['title']
-                self.selected_element.width = values['width']
-                self.selected_element.fields = values['fields']
-                self.selected_element.update_height()
+                block.title = values['title']
+                block.width = values['width']
+                block.fields = values['fields']
+                block.update_height()
         else:
-            dialog = EditBlockDialog(self.selected_element, self)
+            dialog = EditBlockDialog(block, self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 values = dialog.get_values()
-                self.selected_element.title = values['title']
-                self.selected_element.width = values['width']
-                self.selected_element.height = values['height']
+                block.title = values['title']
+                block.width = values['width']
+                block.height = values['height']
 
         self.update()
 
@@ -297,17 +275,7 @@ class DiagramCanvas(QWidget):
 
         pos = Point(event.position().x(), event.position().y())
 
-        # Check if clicking on connector button
-        if (self.connector_button_rect and 
-            self.connector_button_rect.contains(int(pos.x), int(pos.y)) and
-            isinstance(self.selected_element, Block)):
-            self.creating_connector = True
-            self.connector_start = self.selected_element.id
-            self.update()
-            return
-
         if self.creating_connector:
-            # Try to connect to a block
             for block in self.get_all_blocks():
                 if block.contains(pos) and block.id != self.connector_start:
                     connector_id = f"connector_{self.element_counter}"
@@ -315,47 +283,55 @@ class DiagramCanvas(QWidget):
                     self.connectors.append(Connector(connector_id, self.connector_start, block.id))
                     self.creating_connector = False
                     self.connector_start = None
+                    self.selected_id = None
                     self.update()
                     return
-
+            
             self.creating_connector = False
             self.connector_start = None
+            self.selected_id = None
+            self.update()
             return
 
-        # Deselect all
+        if (self.connector_button_rect and 
+            self.connector_button_rect.contains(int(pos.x), int(pos.y)) and
+            self.selected_id):
+            self.creating_connector = True
+            self.connector_start = self.selected_id
+            self.update()
+            return
+
         for block in self.get_all_blocks():
             block.selected = False
-        for connector in self.connectors:
-            connector.selected = False
 
-        # Check if clicking on a block
+        self.selected_id = None
+
         for block in self.get_all_blocks():
             if block.contains(pos):
                 block.selected = True
-                self.selected_element = block
+                self.selected_id = block.id
                 self.dragging = True
                 self.drag_offset = Point(pos.x - block.x, pos.y - block.y)
                 self.update()
                 return
 
-        # Check if clicking on a connector
         for connector in self.connectors:
             if self.is_near_connector(pos, connector):
                 connector.selected = True
-                self.selected_element = connector
+                self.selected_id = connector.id
                 self.update()
                 return
 
-        self.selected_element = None
         self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent):
         pos = Point(event.position().x(), event.position().y())
-
-        if self.dragging and isinstance(self.selected_element, Block):
-            self.selected_element.x = pos.x - self.drag_offset.x
-            self.selected_element.y = pos.y - self.drag_offset.y
-            self.update()
+        if self.dragging and self.selected_id:
+            block = self.get_block_by_id(self.selected_id)
+            if block:
+                block.x = pos.x - self.drag_offset.x
+                block.y = pos.y - self.drag_offset.y
+                self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -371,8 +347,8 @@ class DiagramCanvas(QWidget):
             self.edit_selected()
 
     def is_near_connector(self, pos: Point, connector: Connector, threshold: float = 10) -> bool:
-        from_block = next((b for b in self.get_all_blocks() if b.id == connector.from_id), None)
-        to_block = next((b for b in self.get_all_blocks() if b.id == connector.to_id), None)
+        from_block = self.get_block_by_id(connector.from_id)
+        to_block = self.get_block_by_id(connector.to_id)
 
         if not from_block or not to_block:
             return False
@@ -380,7 +356,6 @@ class DiagramCanvas(QWidget):
         p1 = from_block.get_connection_point(to_block)
         p2 = to_block.get_connection_point(from_block)
 
-        # Distance from point to line
         dx = p2.x - p1.x
         dy = p2.y - p1.y
         length = math.sqrt(dx * dx + dy * dy)
@@ -398,25 +373,19 @@ class DiagramCanvas(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Background
         painter.fillRect(self.rect(), QColor(240, 240, 240))
 
-        # Draw connectors
         for connector in self.connectors:
             self.draw_connector(painter, connector)
 
-        # Draw blocks
         for block in self.blocks:
             self.draw_block(painter, block)
 
-        # Draw tables
         for table in self.tables:
             self.draw_table(painter, table)
 
-        # Draw connector preview
         if self.creating_connector and self.connector_start:
-            start_block = next((b for b in self.get_all_blocks() if b.id == self.connector_start), None)
+            start_block = self.get_block_by_id(self.connector_start)
             if start_block:
                 cursor_pos = self.mapFromGlobal(QCursor.pos())
                 painter.setPen(QPen(QColor(100, 100, 100), 2, Qt.PenStyle.DashLine))
@@ -424,88 +393,79 @@ class DiagramCanvas(QWidget):
                                cursor_pos.x(), cursor_pos.y())
 
     def draw_block(self, painter: QPainter, block: Block):
-        color = QColor(100, 150, 255) if block.selected else QColor(200, 220, 255)
+        if self.creating_connector:
+            color = QColor(180, 180, 180)
+            border_color = QColor(100, 100, 100)
+        else:
+            color = QColor(100, 150, 255) if block.selected else QColor(200, 220, 255)
+            border_color = QColor(0, 0, 0) if block.selected else QColor(100, 100, 100)
+        
         painter.fillRect(int(block.x), int(block.y), int(block.width), int(block.height), color)
-
-        border_color = QColor(0, 0, 0) if block.selected else QColor(100, 100, 100)
-        border_width = 2 if block.selected else 1
+        
+        border_width = 1 if self.creating_connector else (2 if block.selected else 1)
         painter.setPen(QPen(border_color, border_width))
         painter.drawRect(int(block.x), int(block.y), int(block.width), int(block.height))
 
         painter.setPen(QPen(QColor(0, 0, 0)))
         painter.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        painter.drawText(
-            int(block.x), int(block.y), int(block.width), int(block.height),
-            Qt.AlignmentFlag.AlignCenter, block.title
-        )
+        painter.drawText(int(block.x), int(block.y), int(block.width), int(block.height),
+                        Qt.AlignmentFlag.AlignCenter, block.title)
 
-        # Draw connector button if selected
-        if block.selected:
+        if block.selected and not self.creating_connector:
             self.draw_connector_button(painter, block)
 
     def draw_table(self, painter: QPainter, table: Table):
-        color = QColor(150, 200, 100) if table.selected else QColor(200, 240, 150)
+        if self.creating_connector:
+            color = QColor(180, 180, 180)
+            border_color = QColor(100, 100, 100)
+        else:
+            color = QColor(150, 200, 100) if table.selected else QColor(200, 240, 150)
+            border_color = QColor(0, 0, 0) if table.selected else QColor(100, 100, 100)
+        
         painter.fillRect(int(table.x), int(table.y), int(table.width), int(table.height), color)
-
-        border_color = QColor(0, 0, 0) if table.selected else QColor(100, 100, 100)
-        border_width = 2 if table.selected else 1
+        
+        border_width = 1 if self.creating_connector else (2 if table.selected else 1)
         painter.setPen(QPen(border_color, border_width))
         painter.drawRect(int(table.x), int(table.y), int(table.width), int(table.height))
 
         painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         painter.setPen(QPen(QColor(0, 0, 0)))
 
-        # Draw title
         title_height = 25
-        painter.drawText(
-            int(table.x), int(table.y), int(table.width), title_height,
-            Qt.AlignmentFlag.AlignCenter, table.title
-        )
+        painter.drawText(int(table.x), int(table.y), int(table.width), title_height,
+                        Qt.AlignmentFlag.AlignCenter, table.title)
 
-        # Draw separator
         painter.drawLine(int(table.x), int(table.y + title_height),
                         int(table.x + table.width), int(table.y + title_height))
 
-        # Draw fields
         painter.setFont(QFont("Arial", 8))
         for i, field in enumerate(table.fields):
             y = table.y + title_height + i * 25
-            painter.drawText(
-                int(table.x + 5), int(y), int(table.width - 10), 25,
-                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, field
-            )
+            painter.drawText(int(table.x + 5), int(y), int(table.width - 10), 25,
+                           Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, field)
 
-        # Draw connector button if selected
-        if table.selected:
+        if table.selected and not self.creating_connector:
             self.draw_connector_button(painter, table)
 
     def draw_connector_button(self, painter: QPainter, block: Block):
-        """Draw a small + button in the middle of the top edge"""
         button_size = 20
         button_x = block.x + block.width / 2 - button_size / 2
         button_y = block.y - button_size - 5
 
-        # Draw button background
         painter.fillRect(int(button_x), int(button_y), button_size, button_size, QColor(76, 175, 80))
-
-        # Draw button border
         painter.setPen(QPen(QColor(0, 0, 0), 1))
         painter.drawRect(int(button_x), int(button_y), button_size, button_size)
 
-        # Draw + sign
         painter.setPen(QPen(QColor(255, 255, 255), 2))
         painter.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        painter.drawText(
-            int(button_x), int(button_y), button_size, button_size,
-            Qt.AlignmentFlag.AlignCenter, "+"
-        )
+        painter.drawText(int(button_x), int(button_y), button_size, button_size,
+                        Qt.AlignmentFlag.AlignCenter, "+")
 
-        # Store button rect for hit detection
         self.connector_button_rect = QRect(int(button_x), int(button_y), button_size, button_size)
 
     def draw_connector(self, painter: QPainter, connector: Connector):
-        from_block = next((b for b in self.get_all_blocks() if b.id == connector.from_id), None)
-        to_block = next((b for b in self.get_all_blocks() if b.id == connector.to_id), None)
+        from_block = self.get_block_by_id(connector.from_id)
+        to_block = self.get_block_by_id(connector.to_id)
 
         if not from_block or not to_block:
             return
@@ -516,46 +476,33 @@ class DiagramCanvas(QWidget):
         color = QColor(200, 0, 0) if connector.selected else QColor(100, 100, 100)
         pen_width = 2 if connector.selected else 1
         painter.setPen(QPen(color, pen_width))
-
         painter.drawLine(int(p1.x), int(p1.y), int(p2.x), int(p2.y))
 
-        # Draw arrowhead
         angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
         arrow_size = 10
 
-        p_left = Point(
-            p2.x - arrow_size * math.cos(angle - math.pi / 6),
-            p2.y - arrow_size * math.sin(angle - math.pi / 6)
-        )
-        p_right = Point(
-            p2.x - arrow_size * math.cos(angle + math.pi / 6),
-            p2.y - arrow_size * math.sin(angle + math.pi / 6)
-        )
+        p_left = Point(p2.x - arrow_size * math.cos(angle - math.pi / 6),
+                       p2.y - arrow_size * math.sin(angle - math.pi / 6))
+        p_right = Point(p2.x - arrow_size * math.cos(angle + math.pi / 6),
+                        p2.y - arrow_size * math.sin(angle + math.pi / 6))
 
         painter.setBrush(QBrush(color))
-        arrow = QPolygonF([
-            QPointF(p2.x, p2.y),
-            QPointF(p_left.x, p_left.y),
-            QPointF(p_right.x, p_right.y)
-        ])
+        arrow = QPolygonF([QPointF(p2.x, p2.y), QPointF(p_left.x, p_left.y), QPointF(p_right.x, p_right.y)])
         painter.drawPolygon(arrow)
 
     def save_as_image(self, filepath: str):
-        """Save diagram as PNG image"""
-        # Calculate bounding box
-        all_elements = self.get_all_blocks() + self.connectors
-        if not all_elements:
+        all_blocks = self.get_all_blocks()
+        if not all_blocks:
             return
 
-        min_x = min([b.x for b in self.get_all_blocks()], default=0)
-        min_y = min([b.y for b in self.get_all_blocks()], default=0)
-        max_x = max([b.x + b.width for b in self.get_all_blocks()], default=800)
-        max_y = max([b.y + b.height for b in self.get_all_blocks()], default=600)
+        min_x = min([b.x for b in all_blocks], default=0)
+        min_y = min([b.y for b in all_blocks], default=0)
+        max_x = max([b.x + b.width for b in all_blocks], default=800)
+        max_y = max([b.y + b.height for b in all_blocks], default=600)
 
         width = int(max_x - min_x + 40)
         height = int(max_y - min_y + 40)
 
-        # Create image
         image = QImage(width, height, QImage.Format.Format_RGB32)
         image.fill(QColor(240, 240, 240))
 
@@ -563,7 +510,6 @@ class DiagramCanvas(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.translate(-int(min_x) + 20, -int(min_y) + 20)
 
-        # Draw all elements
         for connector in self.connectors:
             self.draw_connector(painter, connector)
 
@@ -576,21 +522,6 @@ class DiagramCanvas(QWidget):
         painter.end()
         image.save(filepath, "PNG")
 
-    def get_data(self) -> dict:
-        """Export diagram data"""
-        return {
-            'blocks': [asdict(b) for b in self.blocks],
-            'tables': [asdict(t) for t in self.tables],
-            'connectors': [asdict(c) for c in self.connectors]
-        }
-
-    def load_data(self, data: dict):
-        """Import diagram data"""
-        self.blocks = [Block(**b) for b in data.get('blocks', [])]
-        self.tables = [Table(**t) for t in data.get('tables', [])]
-        self.connectors = [Connector(**c) for c in data.get('connectors', [])]
-        self.update()
-
 
 class DiagramApp(QMainWindow):
     def __init__(self):
@@ -601,11 +532,9 @@ class DiagramApp(QMainWindow):
         self.canvas = DiagramCanvas()
         self.active_button = None
 
-        # Main layout
         main_widget = QWidget()
         layout = QVBoxLayout()
 
-        # Top toolbar
         toolbar_layout = QHBoxLayout()
         
         create_btn = QPushButton("Create Diagram")
@@ -616,7 +545,7 @@ class DiagramApp(QMainWindow):
         
         table_btn = QPushButton("Add Table")
         table_btn.clicked.connect(lambda: self.on_tool_button(table_btn, self.canvas.add_table))
-
+        
         delete_btn = QPushButton("Delete")
         delete_btn.clicked.connect(self.canvas.delete_selected)
         
@@ -630,9 +559,17 @@ class DiagramApp(QMainWindow):
         toolbar_layout.addWidget(delete_btn)
         toolbar_layout.addStretch()
 
-        save_btn = QPushButton("Save Diagram")
-        save_btn.clicked.connect(self.save_diagram)
-        toolbar_layout.addWidget(save_btn)
+        save_project_btn = QPushButton("Save Diagram")
+        save_project_btn.clicked.connect(self.save_project)
+        toolbar_layout.addWidget(save_project_btn)
+        
+        load_project_btn = QPushButton("Load Diagram")
+        load_project_btn.clicked.connect(self.load_project)
+        toolbar_layout.addWidget(load_project_btn)
+        
+        export_btn = QPushButton("Export")
+        export_btn.clicked.connect(self.export_diagram)
+        toolbar_layout.addWidget(export_btn)
 
         layout.addLayout(toolbar_layout)
         layout.addWidget(self.canvas)
@@ -641,44 +578,95 @@ class DiagramApp(QMainWindow):
         self.setCentralWidget(main_widget)
 
     def on_tool_button(self, button: QPushButton, action):
-        """Handle tool button clicks with visual feedback"""
-        # Deactivate previous button
         if self.active_button and self.active_button != button:
             self.active_button.setStyleSheet("")
         
-        # Toggle current button
         if self.active_button == button:
-            # Deactivate if clicking the same button
             button.setStyleSheet("")
             self.active_button = None
         else:
-            # Activate new button
             button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
             self.active_button = button
         
-        # Execute the action
         action()
 
     def new_diagram(self):
         self.canvas.blocks.clear()
         self.canvas.tables.clear()
         self.canvas.connectors.clear()
-        self.canvas.selected_element = None
+        self.canvas.selected_id = None
         self.canvas.element_counter = 0
         self.canvas.creating_connector = False
         self.canvas.connector_start = None
         self.canvas.update()
 
-    def save_diagram(self):
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Save Diagram", "", "PNG Image (*.png)"
-        )
+    def save_project(self):
+        filepath, _ = QFileDialog.getSaveFileName(self, "Save Diagram", "", "Diagram File (*.dgm)")
         if filepath:
             try:
-                self.canvas.save_as_image(filepath)
+                data = {
+                    'blocks': [{'id': b.id, 'x': b.x, 'y': b.y, 'width': b.width, 'height': b.height, 'title': b.title} 
+                              for b in self.canvas.blocks],
+                    'tables': [{'id': t.id, 'x': t.x, 'y': t.y, 'width': t.width, 'height': t.height, 'title': t.title, 'fields': t.fields} 
+                              for t in self.canvas.tables],
+                    'connectors': [{'id': c.id, 'from_id': c.from_id, 'to_id': c.to_id} 
+                                  for c in self.canvas.connectors]
+                }
+                import json
+                with open(filepath, 'w') as f:
+                    json.dump(data, f, indent=2)
                 QMessageBox.information(self, "Success", f"Diagram saved to {filepath}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to save: {str(e)}")
+
+    def load_project(self):
+        filepath, _ = QFileDialog.getOpenFileName(self, "Load Diagram", "", "Diagram File (*.dgm)")
+        if filepath:
+            try:
+                import json
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                
+                self.canvas.blocks.clear()
+                self.canvas.tables.clear()
+                self.canvas.connectors.clear()
+                
+                for block_data in data.get('blocks', []):
+                    block = Block(block_data['id'], block_data['x'], block_data['y'], 
+                                 block_data['width'], block_data['height'], block_data['title'])
+                    self.canvas.blocks.append(block)
+                    self.canvas.element_counter = max(self.canvas.element_counter, 
+                                                      int(block_data['id'].split('_')[1]) + 1)
+                
+                for table_data in data.get('tables', []):
+                    table = Table(table_data['id'], table_data['x'], table_data['y'], 
+                                 table_data['width'], table_data['height'], table_data['title'])
+                    table.fields = table_data.get('fields', [])
+                    table.update_height()
+                    self.canvas.tables.append(table)
+                    self.canvas.element_counter = max(self.canvas.element_counter, 
+                                                      int(table_data['id'].split('_')[1]) + 1)
+                
+                for conn_data in data.get('connectors', []):
+                    connector = Connector(conn_data['id'], conn_data['from_id'], conn_data['to_id'])
+                    self.canvas.connectors.append(connector)
+                    self.canvas.element_counter = max(self.canvas.element_counter, 
+                                                      int(conn_data['id'].split('_')[1]) + 1)
+                
+                self.canvas.selected_id = None
+                self.canvas.update()
+                QMessageBox.information(self, "Success", f"Diagram loaded from {filepath}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to load: {str(e)}")
+
+    def export_diagram(self):
+        filepath, _ = QFileDialog.getSaveFileName(self, "Export Diagram", "", "PNG Image (*.png)")
+        if filepath:
+            try:
+                self.canvas.save_as_image(filepath)
+                QMessageBox.information(self, "Success", f"Diagram exported to {filepath}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to export: {str(e)}")
 
 
 if __name__ == "__main__":
