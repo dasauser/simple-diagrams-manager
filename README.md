@@ -1,106 +1,125 @@
 # Diagram Creator
 
-Simple diagram editor for creating UML-like diagrams with blocks, tables, and connectors.
-
-## Installation
-
-1. Install Python 3.9+
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-## Running
-
-```bash
-python diagram_app.py
-```
+A desktop application for creating and editing UML-like diagrams with visual blocks, tables, connectors, and real-time resizing.
 
 ## Features
 
-### Core Elements
+- **Visual blocks** — simple rectangular shapes with custom titles and dimensions
+- **Data tables** — blocks with unlimited fields that auto-resize based on content
+- **Directional connectors** — arrows between elements with smart edge attachment
+- **Resize handles** — visual corner and edge handles for intuitive dimension adjustment
+- **Drag and drop** — move blocks and tables freely across the canvas
+- **Project management** — save and load diagram projects for later editing
+- **PNG export** — export final diagrams as high-quality PNG images
+- **Real-time preview** — instant visual feedback for all changes
+- **Duplicate connector prevention** — only one connection allowed between two elements
 
-1. **Blocks** - Simple rectangular shapes with text labels
-   - Add: Click "Add Block" button
-   - Edit: Double-click block or select + click "Edit"
-   - Move: Click and drag
-   - Delete: Select + press Delete or click "Delete" button
-   - Customize: Title, width, height
+## Supported Platforms
 
-2. **Tables** - Blocks with fields that auto-resize
-   - Add: Click "Add Table" button
-   - Edit: Double-click or click "Edit"
-   - Fields: Add/remove unlimited fields
-   - Height auto-adjusts based on field count
+Cross-platform compatibility verified on:
 
-3. **Connectors** - Directional arrows between elements
-   - Add: Select source block, click "Add Connector", click target block
-   - Delete: Select connector + press Delete
-   - Auto-routing: Arrows attach to nearest edges
+- Windows 10, Windows 11
+- Windows Subsystem for Linux 2 (WSL2)
+- macOS 10.14+
+- Linux (Ubuntu 20.04+)
 
-### Controls
+Requires Python 3.8 or higher.
 
-- **Left Click**: Select element / Start dragging
-- **Double Click**: Edit selected element
-- **Delete Key**: Delete selected element
-- **Ctrl+E**: Edit selected element
-- **Drag**: Move blocks around canvas
+## Requirements
 
-### Saving
+- **Python** 3.8+
+- **PyQt6** 6.7.0
 
-- Click "Save Diagram" button in top-right
-- Choose location and filename
-- Diagram exports as PNG image
-- Automatically calculates optimal canvas size
+## Installation
 
-### Starting Fresh
+### From source
 
-- Click "Create Diagram" to clear and start new diagram
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/diagram-creator.git
+   cd diagram-creator
+   ```
 
-## File Format
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Diagram data structure (JSON format if you want to extend):
-```json
-{
-  "blocks": [
-    {
-      "id": "block_0",
-      "x": 100,
-      "y": 100,
-      "width": 120,
-      "height": 60,
-      "title": "Block Name"
-    }
-  ],
-  "tables": [
-    {
-      "id": "table_0",
-      "x": 300,
-      "y": 100,
-      "width": 150,
-      "height": 110,
-      "title": "Table Name",
-      "fields": ["field1", "field2"]
-    }
-  ],
-  "connectors": [
-    {
-      "id": "connector_0",
-      "from_id": "block_0",
-      "to_id": "table_0"
-    }
-  ]
-}
+3. Run the application:
+   ```bash
+   python diagram_app.py
+   ```
+
+## Usage
+
+### Create diagram
+1. Launch the application
+2. Click **"Add Block"** or **"Add Table"** to add elements
+3. Click and drag elements to reposition them
+4. Use corner/edge handles to resize elements
+
+### Connect elements
+1. Select a block or table
+2. Click the green **"+"** button above the element
+3. Click the target element to create a connection
+4. Only one connection allowed between any two elements (old one replaces new)
+
+### Edit elements
+- **Double-click** any element or select and click **"Edit"** to modify
+  - For blocks: change title, width, height
+  - For tables: change title, width, and add/remove fields
+- **Delete**: select element and press Delete or click **"Delete"**
+
+### Save and manage
+- **Save Diagram** — saves editable project as `.dgm` file for resuming later
+- **Load Diagram** — restores previously saved project with all elements and connections
+- **Export** — saves final diagram as PNG image file
+
+### Keyboard shortcuts
+- `Delete` — remove selected element
+- `Ctrl+E` — edit selected element
+
+## File Structure
+
+```
+diagram-creator/
+├── diagram_app.py      — Main application
+├── requirements.txt    — Python dependencies
+├── README.md          — Documentation
+└── RELEASE.md         — Release notes
 ```
 
-## Keyboard Shortcuts
+## Technical Details
 
-- `Delete`: Remove selected element
-- `Ctrl+E`: Edit selected element
+**GUI Framework:** PyQt6 — cross-platform desktop application framework
 
-## Tips
+**Architecture:** Single-window application with canvas-based drawing system
 
-- Connectors automatically route to the closest edge
-- Table height adjusts automatically when fields are added/removed
-- Use Edit dialog to precisely set dimensions and names
-- Workspace has unlimited space - scroll as needed
+**Data Format:** `.dgm` files store diagrams as JSON with element positions, dimensions, titles, and connection mappings
+
+**Export:** QPainter-based rendering to PNG with automatic canvas sizing
+
+## Known Limitations
+
+- Canvas has unlimited size but scrolling not yet implemented
+- Connector routing is direct line (no path optimization)
+- Tables auto-adjust height based on field count; width must be set manually
+
+## Building Executable
+
+Using PyInstaller:
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed diagram_app.py
+```
+
+Compiled executable will be in `dist/diagram_app.exe`.
+
+## License
+
+MIT License
+
+---
+
+*Diagram creation tool provided as-is without warranty.*
