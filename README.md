@@ -118,8 +118,8 @@ Compiled executable will be in `dist/diagram_app.exe`.
 
 ## License
 
-MIT License
+[MIT](LICENSE)
 
 ---
 
-*Diagram creation tool provided as-is without warranty.*
+*This project was developed with assistance from [Claude](https://claude.ai) (Anthropic).*
